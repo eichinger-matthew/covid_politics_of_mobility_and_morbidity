@@ -10,18 +10,23 @@ library(marginaleffects)
 # load
 load("treatment_matching_results.RData")
 
-# assign df
-df <- match_res$glm[[8]]$adjusted_data
-df <- mutate(df, dem_treat = ifelse(elect_winner == "Democrat", 1, 0))
-# estimate model
-fit <- coxph(Surv(survtime50_3consc, dead50_3consc) ~ 
+# get dataframe from fifth matching model
+df <- match_res$glm[[5]]$adjusted_data
+# add indicator for whether a county is dead at end period
+df <- 
+  df %>%
+  mutate(dem_treat = ifelse(elect_winner == "Democrat", 1, 0),
+         dead = 1)
+
+# estimate cox-ph model
+fit <- coxph(Surv(surv_time, dead) ~ 
                dem_treat, data = df, weights = weights)
+# get summary
 summary(fit)
-# plot kaplan-meier curve for 8th caliper
+# plot kaplan-meier curve
 plot(survfit(fit, newdata = data.frame("dem_treat" = c(0,1)), se.fit = TRUE))
-# plot using ggsurvfit
-ggsurvplot(fit, data = df)
-survfit2(Surv(survtime50_3consc, dead50_3consc) ~ 
+# plot curve using ggsurvfit
+survfit2(Surv(surv_time, dead) ~ 
            dem_treat, data = df, weights = weights) %>%
   tidy_survfit() %>%
   ggplot(aes(x = time, y = estimate, linetype = strata)) +
@@ -33,30 +38,33 @@ survfit2(Surv(survtime50_3consc, dead50_3consc) ~
   theme_minimal() +
   theme(panel.background = element_rect(linewidth = 1))
 
-# use example above in a loop
+# sensitivity analysis ------------------------------------
+
+# ate results could depend on caliper hyperparameter in matching
+# estimate cox-ph mod for each caliper dataframe and plot results 
+
+# container
 coefs <- list()
+# loop over matching datasets
 for(i in seq_along(match_res$glm)){
   d <- match_res$glm[[i]]$adjusted_data
-  d <- mutate(d, dem_treat = ifelse(elect_winner == "Democrat", 1, 0))
+  d <- mutate(d, dem_treat = ifelse(elect_winner == "Democrat", 1, 0),
+              dead = 1)
   # estimate model
-  fit <- coxph(Surv(survtime50_3consc) ~ dem_treat, data = d, weights = weights)
+  fit <- coxph(Surv(surv_time, dead) ~ dem_treat, data = d, weights = weights)
   # assign to tibble
-  coefs[[i]] <- tidy(fit, exponentiate = TRUE, conf.int = TRUE)
+  cfs <- tidy(fit, exponentiate = TRUE, conf.int = TRUE)
+  # get caliper
+  calip <- match_res$glm[[i]]$matching_model$caliper[[1]]
+  cfs <- mutate(cfs, caliper = calip)
+  coefs[[i]] <- cfs
   # what to do at end
   if(i == 10){
     fin <- do.call(rbind, coefs)
   }
 }
-# get calipers
-calips <- vector(mode = "numeric")
-for(i in seq_along(match_res$glm)){
-  # get caliper
-  calips[i] <- match_res$glm[[i]]$matching_model$caliper[[1]]
-}
-# add to final coef info
-fin$calips <- calips
 
-# plot coef plot
+# plot how dem ate varies as f'n of caliper hyperparameter
 fin %>%
   ggplot(aes(x = calips, y = estimate)) +
   geom_point() +
@@ -66,12 +74,7 @@ fin %>%
        title = "Hazard Ratios for the Discrete Effect of Democratic Status",
        subtitle = "By caliper value used in matching procedure") +
   theme_minimal() +
-  theme(panel.background = element_rect(linewidth = 1))
-
-
-
-
-
+  theme(axis.line = element_line())
 
 
 

@@ -1,15 +1,17 @@
 # clean google mobility data
 # downloaded on feb 14, 2022
-
+rm(list = ls())
 # libraries
 library(tidyverse)
 library(janitor)
 library(tigris)
 
+select <- dplyr::select
+
 
 # loading data ------
 
-setwd("C:/Users/eichi/Downloads")
+setwd("C:/Users/eichi/Desktop/github_projects/covid_politics_of_mobility_and_morbidity")
 
 # get mobility data from https://www.google.com/covid19/mobility/
 file_wants <- 
@@ -58,7 +60,8 @@ cfull <-
   pivot_wider(names_from = party, values_from = candidatevotes) %>%
   mutate(rep_frac = REPUBLICAN/totalvotes,
          dem_frac = DEMOCRAT/totalvotes,
-         rep_margin = rep_frac-dem_frac) %>%
+         rep_margin = rep_frac-dem_frac,
+         elect_winner = ifelse(rep_frac > dem_frac, "Republican", "Democrat")) %>%
   arrange(desc(rep_margin)) %>%
   left_join(cchars, by = c("county_fips" = "fips")) %>%
   mutate(county_fips = 
@@ -66,7 +69,7 @@ cfull <-
                   str_pad(county_fips, 4, "left", "0"), county_fips)) %>%
   clean_names()
 # save
-# saveRDS(cfull, file = 'county_sociodems_and_elect_returns.rds')
+#saveRDS(cfull, file = 'county_sociodems_and_elect_returns.rds')
 
 # row-bind mobility data
 mob <- 
@@ -88,8 +91,12 @@ covid <-
 # join to daily mobility
 daily_measures <-
   covid %>%
-  left_join(small_mob, by = c('date', 'fips'))
-saveRDS(daily_measures, file = "county_covid_rates_and_mobility.rds")
+  left_join(mob, by = c('date', 'fips'))
+# saveRDS(daily_measures, file = "all_data_covid_and_mobility.rds")
+
+
+
+
 
 
 
