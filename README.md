@@ -20,7 +20,7 @@ data_cleaning_county_covid_and_mobility.R cleans the time-series dataframes from
 
 match_models.R runs the matching models to get sample adjustment weights that address selection bias in how counties are "allocated" to the Republican and Democratic "treatment" groups. It also produces Love plots, balance plots, and balance tables using the "cobalt" package, and it stores the results in organized lists. The output file is "treatment_matching_results.RData". <br />
 
-preemption.R specifies and estimates the preemption model. <br />
+preemption_new.R specifies and estimates the preemption model. It supercedes the preemption.R file. <br />
 
 surv_models.R specifies and estimates the survival model. <br />
 
