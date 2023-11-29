@@ -1,4 +1,5 @@
 # load libraries
+rm(list = ls())
 library(tidyverse)
 library(broom)
 library(kableExtra)
@@ -7,40 +8,68 @@ library(wesanderson)
 library(lubridate)
 library(vars)
 
+setwd("C:/Users/eichi/Desktop/covid_mobility_and_morbidity")
+
+# fixed commands
 select <- dplyr::select
+q <- 
+  theme_minimal() +
+  theme(panel.background = element_rect(linewidth = 1),
+        plot.margin = margin(t = 20, r = 30, b = 10, l = 20))
 
 # load data
-dat <- read_rds("county_covid_elections_survival_with_first_wave_full.rds")
+dat <- read_rds("C:/Users/eichi/Desktop/github_projects/covid_politics_of_mobility_and_morbidity/master_county_covid_rates_and_retail_mobility.rds")
+
 
 # fit a var model for hennepin ------
 # get mn data
 mn <- 
   dat %>%
-  filter(sub_region_1 == "Minnesota", sub_region_2 == "Hennepin County") %>%
-  select(county_fips, date, day_num, cases_avg_per_100k, retail_rec_pct_change_base) %>%
-  rename(cases = cases_avg_per_100k, mobility = retail_rec_pct_change_base)
+  filter(sub_region_1 == "Washington", sub_region_2 == "King County") %>%
+  select(fips, date, day, cases_avg_per_100k, retail) %>%
+  rename(cases = cases_avg_per_100k, mobility = retail)
 
-# plot mobility
+# plot mobility for king county (seattle)
 mob <-
   mn %>%
   ggplot(aes(x = date, y = mobility)) +
-  geom_line() +
+  geom_line(col = 'firebrick') +
   geom_hline(yintercept = 0, linetype = 2) +
+  annotate(geom = 'rect', xmin = as.Date("2020-05-01"), 
+           xmax = as.Date("2020-09-01"), ymin = -Inf, ymax = Inf,
+           fill = "gray", alpha = 0.4) +
+  annotate(geom = 'rect', xmin = as.Date("2021-05-01"), 
+           xmax = as.Date("2021-09-01"), ymin = -Inf, ymax = Inf,
+           fill = "gray", alpha = 0.4) +
+  annotate(geom = 'rect', xmin = as.Date("2022-05-01"), 
+           xmax = as.Date("2022-09-01"), ymin = -Inf, ymax = Inf,
+           fill = "gray", alpha = 0.4) +
   labs(x = "Date", y = "Mobility",
-       title = "Time-series of Mobility for Hennepin County, Minnesota") +
-  theme_minimal() +
-  theme(panel.background = element_rect(linewidth = 1))
+       title = "Mobility Time-Series for King County, Washington",
+       subtitle = "Summer periods shaded") +
+  q
 
 # plot mobility and cases
 mn %>%
   pivot_longer(cols = c(mobility, cases), names_to = "series", values_to = "nums") %>%
-  ggplot(aes(x = date, y = nums, group = series, linetype = series)) +
+  ggplot(aes(x = date, y = nums, col = series)) +
   geom_line() +
   geom_hline(yintercept = 0, linetype = 2) +
+  annotate(geom = 'rect', xmin = as.Date("2020-05-01"), 
+           xmax = as.Date("2020-09-01"), ymin = -Inf, ymax = Inf,
+           fill = "gray", alpha = 0.4) +
+  annotate(geom = 'rect', xmin = as.Date("2021-05-01"), 
+           xmax = as.Date("2021-09-01"), ymin = -Inf, ymax = Inf,
+           fill = "gray", alpha = 0.4) +
+  annotate(geom = 'rect', xmin = as.Date("2022-05-01"), 
+           xmax = as.Date("2022-09-01"), ymin = -Inf, ymax = Inf,
+           fill = "gray", alpha = 0.4) +
+  scale_color_manual(name = "Series", values = c("firebrick", "steelblue"),
+                   labels = c("Cases", "Mobility")) +
   labs(x = "Date", y = "Mobility/Case rate",
-       title = "Time-series of Mobility for Hennepin County, Minnesota") +
-  theme_minimal() +
-  theme(panel.background = element_rect(linewidth = 1))
+       title = "Time-series of Mobility for King County, Washington",
+       subtitle = "Summer periods shaded") +
+  q
 
 # estimate best lag from info criteria
 lag_check <- VARselect(y = mn[,4:5], lag.max = 14, type = "both", season = 7)
@@ -56,7 +85,7 @@ fitted_mobility <- c(rep(NA, lag_choice), var_mod$varresult$mobility$fitted.valu
 df_fit <- 
   tibble("cases" = mn$cases, "mobility" = mn$mobility, 
          fitted_cases, fitted_mobility,
-         "day" = mn$day_num, "date" = mn$date)
+         "day" = mn$day, "date" = mn$date)
 # plot
 df_fit %>%
   ggplot(aes(x = date)) +
@@ -64,6 +93,12 @@ df_fit %>%
   geom_line(aes(y = mobility), col = "firebrick") +
   geom_line(aes(y = fitted_cases), col = "purple") +
   geom_line(aes(y = fitted_mobility), col = "yellow")
+
+
+# regression example, using only past 7 days
+
+
+
 
 
 # functions to estimate vars for every county
@@ -82,7 +117,7 @@ estim_var <- function(df){
   fits <- 
     tibble("cases" = df$cases, "mobility" = df$mobility, 
            fitted_cases, fitted_mobility,
-           "day" = df$day_num, "date" = df$date) %>%
+           "day" = df$day, "date" = df$date) %>%
     mutate(resid_mob = mobility - fitted_mobility,
            resid_cases = cases - fitted_cases)
   
@@ -106,17 +141,17 @@ estim_var <- function(df){
 # make grouped list of dataframes like the mn one above
 ckeep <-
   dat %>%
-  count(county_fips) %>%
-  filter(n >= 600) %>%
-  pull(county_fips)
+  count(fips) %>%
+  filter(n >= 800) %>%
+  pull(fips)
 # make grouped list
 county_list <-
   dat %>%
-  filter(county_fips %in% ckeep) %>%
-  select(county_fips, sub_region_1, sub_region_2,
-         date, day_num, cases_avg_per_100k, retail_rec_pct_change_base) %>%
-  rename(cases = cases_avg_per_100k, mobility = retail_rec_pct_change_base) %>%
-  group_by(county_fips) %>%
+  filter(fips %in% ckeep) %>%
+  select(fips, sub_region_1, sub_region_2,
+         date, day, cases_avg_per_100k, retail) %>%
+  rename(cases = cases_avg_per_100k, mobility = retail) %>%
+  group_by(fips) %>%
   group_split()
 # apply var estimation to grouped list
 county_vars <-
@@ -124,91 +159,63 @@ county_vars <-
   map(estim_var)
 
 # save
-save(county_vars, file = "var_timeseries_results.RData")
+#save(county_vars, file = "var_timeseries_results.RData")
 
-# load
-#load("var_timeseries_results.RData")
-
-# IRFS -----
 # get irf data
 irfs <- list()
 for(i in seq_along(county_vars)){
   # get county info
   info <- 
     county_vars[[i]]$original_data[1,1:3] %>%
-    mutate(avg_irf = 
-             county_vars[[i]]$impulse_response_function$average_mobility_response)
+    mutate(avg_irf = county_vars[[i]]$impulse_response_function$average_mobility_response)
   # add to list
   irfs[[i]] <- info
 }
 # rbind to get irfs
-irfs <- do.call(rbind, irfs)
-# load dataset with county info
-counties <- read_rds("county_covid_survival_basic.rds")
-# match county info to irfs
-irfs <-
-  irfs %>%
-  left_join(counties, by = c("county_fips"))
+all_irfs <- do.call(rbind, irfs)
+# save to avoid loading var results every time
+write_csv(all_irfs, file = "average_irfs_reactions.csv")
 
-# plot irf densities by election winner
-irfs %>%
-  filter(!is.na(elect_winner)) %>%
-  rename("Election Winner" = elect_winner) %>%
-  ggplot(aes(x = avg_irf, group = `Election Winner`, linetype = `Election Winner`)) +
-  geom_density() +
-  labs(x = "Average Mobility Response, County", y = "Density",
-       title = "Shock Response: Average Mobility Responses to Simulated Increase in COVID-19 Cases",
-       subtitle = "County averages are calculated over a 14-day horizon") +
-  theme_minimal() +
-  theme(panel.background = element_rect(linewidth = 1))
-# t-test of whether the distributions have different means
-t.test(x = irfs$avg_irf[irfs$elect_winner == "Republican"],
-       y = irfs$avg_irf[irfs$elect_winner == "Democrat"])
 
-# plot scatterplot of average response and size of republican share
-irfs %>%
-  filter(!is.na(elect_winner)) %>%
-  ggplot(aes(x = rep_frac, y = avg_irf, col = elect_winner)) +
-  geom_point() +
-  geom_smooth(method = "lm") +
-  scale_color_manual(name = "Election winner", values = c("dodgerblue", "firebrick")) +
-  labs(x = "Fraction of votes for Trump, county", y = "Average mobility response, county",
-       title = "Shock Response: Average Mobility Response to an Increase in COVID-19 Cases",
-       subtitle = "Mobility averages are calculated over a 14-day horizon") +
-  theme_minimal() +
-  theme(panel.background = element_rect(linewidth = 1))
+# Example VAR plots through King County -------------------
 
-# Example VARs -----
+# load
+#load("var_timeseries_results.RData")
 
-# extract hennepin county - have to figure out which it is
-mn_hennep <- NA
+# extract King County county - have to figure out which it is
+seattle <- NA
 for(i in seq_along(county_vars)){
-  if(county_vars[[i]]$original_data$sub_region_1[1] == "Minnesota" &
-     county_vars[[i]]$original_data$sub_region_2[1] == "Hennepin County"){
+  if(county_vars[[i]]$original_data$sub_region_1[1] == "Washington" &
+     county_vars[[i]]$original_data$sub_region_2[1] == "King County"){
     print(i)
-    mn_hennep <- i
+    seattle <- i
   }
 }
-# get hennepin data from list
-mn <- county_vars[[mn_hennep]]
+# is 1377
+# get seattle data from list
+seattlemod <- county_vars[[seattle]]
 # plot VAR series without fitted
-mn$fitted_values %>%
+seattlemod$fitted_values %>%
   pivot_longer(cols = c(cases, mobility, fitted_cases, fitted_mobility),
                names_to = "series", values_to = "nums") %>%
-  ggplot(aes(x = date, y = nums, group = series, col = series, linetype = series)) +
+  ggplot(aes(x = date, y = nums, col = series)) +
   geom_line() +
-  labs(x = "Date", y = "Cases per 100,000/Mobility score",
-       title = "VAR System for Case Rate and Mobility, Results",
-       subtitle = "Hennepin County, Minnesota") +
-  theme_minimal() +
-  theme(panel.background = element_rect(linewidth = 1))
+  scale_color_viridis_d(name = "Series",
+                        labels = c("Case rate", "Fitted case rate",
+                                   "Fitted mobility", "Mobility"),
+                        alpha = 0.5) +
+  labs(x = "Date", y = "Case rate/Mobility level",
+       title = "VAR(14) System of Mobility and COVID-19 Case Rate",
+       subtitle = "King County, Washington",
+       color = "Series", linetype = "Series") +
+  q
 # plot impulse response
-mnirfs <- 
-  tibble("pred_mob" = mn$impulse_response_function$imp_resp$irf$cases,
-         "lowerci" = mn$impulse_response_function$imp_resp$Lower$cases,
-         "upperci" = mn$impulse_response_function$imp_resp$Upper$cases,
+seattleirfs <- 
+  tibble("pred_mob" = seattlemod$impulse_response_function$imp_resp$irf$cases,
+         "lowerci" = seattlemod$impulse_response_function$imp_resp$Lower$cases,
+         "upperci" = seattlemod$impulse_response_function$imp_resp$Upper$cases,
          "horizon" = seq(1, 15, 1))
-mnirfs %>%
+seattleirfs %>%
   ggplot() +
   geom_line(aes(x = horizon, y = pred_mob)) +
   geom_ribbon(aes(x = horizon, ymin = lowerci, ymax = upperci), alpha = 0.4) +
@@ -219,24 +226,37 @@ mnirfs %>%
   theme_minimal() +
   theme(panel.background = element_rect(linewidth = 1))
 
+# IRFS -----
 
-# plot error rates
-mn$fitted_values %>%
-  pivot_longer(cols = c(resid_cases, resid_mob),
-               names_to = "series", values_to = "nums") %>%
-  ggplot(aes(x = date, y = nums, group = series, col = series, linetype = series)) +
-  geom_line() +
-  labs(x = "Date", y = "Residual Error",
-       title = "VAR System Errors, Results",
-       subtitle = "Hennepin County, Minnesota") +
+#
+all_irfs <- read_csv("average_irfs_reactions.csv")
+
+# load matching results to get adjustment weights
+load("treatment_matching_results.RData")
+# join fifth caliper matching results to irf data
+fin_irfs <-
+  all_irfs %>%
+  left_join(match_res$glm[[5]]$adjusted_data, by = c('fips'))
+
+# plot irf densities by election winner
+irf_plot <-
+  fin_irfs %>%
+  filter(!is.na(elect_winner)) %>%
+  ggplot(aes(x = avg_irf*weights, group = elect_winner, linetype = elect_winner)) +
+  geom_density(position = 'identity') +
+  scale_linetype_manual(name = "Election Winner", values = c(1, 2)) +
+  labs(x = "Average Mobility Response", y = "Density",
+       title = "Average Mobility Reactions to COVID-19 Shock",
+       subtitle = "Calculated using IRFs over a 14-day forecast horizon") +
   theme_minimal() +
-  theme(panel.background = element_rect(linewidth = 1))
-
-
-
-
-
-
+  theme(panel.background = element_rect(linewidth = 1)) +
+  q
+# t-test of whether the distributions have different means
+reps <- fin_irfs$avg_irf[fin_irfs$elect_winner == "Republican"]*
+  fin_irfs$weights[fin_irfs$elect_winner == "Republican"]
+dems <- fin_irfs$avg_irf[fin_irfs$elect_winner == "Democrat"]*
+  fin_irfs$weights[fin_irfs$elect_winner == "Democrat"]
+t.test(x = reps, y = dems, na.action = 'omit')
 
 
 

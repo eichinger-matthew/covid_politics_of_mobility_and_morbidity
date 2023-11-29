@@ -19,15 +19,12 @@ library(DiagrammeR)
 library(kableExtra)
 
 # set directory
-setwd("C:/Users/eichi/Desktop/github_projects/covid_politics_of_mobility_and_morbidity")
+setwd('C:/Users/eichi/Desktop/covid_mobility_and_morbidity')
 
 # load data
-svl <- read_rds("survival_data.rds")
+covid <- read_rds("C:/Users/eichi/Desktop/github_projects/covid_politics_of_mobility_and_morbidity/survival_data.rds")
 
-
-
-
-# causal graph for admissible set --------------------------------
+# causal graph -------
 
 # define graph using ggdag for easy use
 d <- dagify(
@@ -86,9 +83,7 @@ digraph {
 ")
 d.diagrammer
 
-
-
-# matching for selection adjustment weights -------------------------------
+# matching ------
 
 # use causal graph to identify admissible set of adjusters
 adjustmentSets(d, "part", "mobility", type = "all")
@@ -97,40 +92,39 @@ adjustmentSets(d, "part", "mobility", type = "all")
 
 # get matching df
 setup_df <-
-  svl %>%
-  select(county_fips, surv_time, elect_winner, 
+  covid %>%
+  select(fips, surv_time, elect_winner, 
          total_population_2018:ruralurban_cc_2018) %>%
   drop_na() %>%
-  mutate(elect_winner_num = ifelse(elect_winner == "Republican", 1, 0))
+  mutate(binary_elect_winner = ifelse(elect_winner == "Republican", 1, 0),
+         median_hh_inc_2018 = log(median_hh_inc_2018))
 
-# make storage object for loop
+# results storage
 match_res <- list()
-# make storage object for balance calculations
-binfo <- list()
-# define caliper hyperparameters to loop over
+# define caliper lengths
 calips <- seq(0.001, 0.01, 0.001)
-# start loop
+binfo <- list()
+# loop
 for(i in seq_along(calips)){
-  # estimate propensity treatment selection model
-  # use 2-to-1 matching with nearest neighbor matching
+  # propensity treatment selection model
   m.glm <- 
-    matchit(elect_winner_num ~ 
+    matchit(binary_elect_winner ~ 
               white_pct_2018 + black_pct_2018 +
               foreignborn_pct_2018 + age65andolder_pct_2018 + 
               median_hh_inc_2018 + lesscollege_pct_2018 + rural_pct_2018, 
             data = setup_df, method = "nearest", distance = "glm",
             ratio = 2, caliper = calips[i])
-  # get adjustment weights from model
+  # get adjusted data
   df.glm <- 
     match.data(m.glm) %>%
     arrange(subclass)
-  # produce love plot for visual diagnostics
+  # create love plot
   love_plot <- 
     love.plot(m.glm, stats = c("mean", "var"),
               thresholds = c(cor = .1), abs = TRUE, wrap = 20,
               limits = list(ks = c(0, .5)), 
               var.order = "unadjusted", line = TRUE)
-  # produce balance table
+  # balance table
   b <- bal.tab(m.glm, un = TRUE, stats = c("mean.diffs", "variance.ratios"), which.treat = .all)
   # make dataset of balance info for distance and each variable (mean, var), given caliper
   btab <- 
@@ -162,10 +156,10 @@ for(i in seq_along(calips)){
 }
 
 # save object
-# save(match_res, file = "treatment_matching_results.RData")
+#save(match_res, file = "treatment_matching_results.RData")
 
+#load("treatment_matching_results.RData")
 
-# matching model visualizations ---------------------------------- 
 
 # get balance info
 balinfo <- do.call(rbind, binfo)
@@ -209,5 +203,15 @@ saveRDS(d, file = "mtab.R")
 q <- 
   d %>%
   kable(format = "latex")
+
+
+
+
+
+
+
+
+
+
 
 
