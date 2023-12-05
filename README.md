@@ -12,7 +12,7 @@ data_retrieval_and_merging.R grabs the county COVID-19 data, county mobility dat
 
 data_cleaning.R cleans the time-series dataframes from the retrieval file. Among other things, it prunes the sample to keep only counties with at least 825 observations, drops variables that are not useful, and creates new variables that are theoretically important - things like the cumulative number of cases per county, the day at which a county returned to a "baseline" level of pre-pandemic mobility, and so forth. It outputs a .rds file called "clean_county_covid_rates_and_mobility_retail.rds". <br />
 
-match_models.R runs the matching models to get sample adjustment weights that address selection bias in how counties are "allocated" to the Republican and Democratic "treatment" groups. It also produces Love plots, balance plots, and balance tables using the "cobalt" package, and it stores the results in organized lists. The output file is "treatment_matching_results.RData". <br />
+match_models.R runs the matching models to get sample adjustment weights that address selection bias in how counties are "allocated" to the Republican and Democratic "treatment" groups. It also produces Love plots, balance plots, and balance tables using the "cobalt" package, and it stores the results in organized .RData objects. The objects are too big to upload to Github, so if you would like a copy of them please just send me an email. <br />
 
 descriptive_graphs.R produces most of the visualizations seen in the paper. A few in the paper come from surv_models.R, preemption.R, and var_models.R because it made sense to generate graphs after estimating models. <br />
 
